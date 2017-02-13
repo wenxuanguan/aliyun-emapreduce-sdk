@@ -201,6 +201,8 @@
                             <include>org.aspectj:aspectjrt</include>
                             <include>com.github.scopt:scopt_${scala.binary.version}</include>
                             <include>org.jdom:jdom</include>
+                            <include>com.aliyun.openservices:loghub-client-lib</include>
+                            <include>com.aliyun.openservices:aliyun-log</include>
                             <include>com.aliyun.openservices:ons-client</include>
                             <include>com.aliyun.openservices:ons-api</include>
                             <include>com.alibaba.rocketmq:rocketmq-client</include>
