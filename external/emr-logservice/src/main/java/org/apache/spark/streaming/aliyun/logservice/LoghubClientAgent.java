@@ -30,9 +30,27 @@ public class LoghubClientAgent {
   private static final Log LOG = LogFactory.getLog(LoghubClientAgent.class);
   private Client client;
   private int logServiceTimeoutMaxRetry = 3;
+  private String endpoint;
+  private String accessId;
+  private String accessKey;
 
   public LoghubClientAgent(String endpoint, String accessId, String accessKey) {
     this.client = new Client(endpoint, accessId, accessKey);
+    this.endpoint = endpoint;
+    this.accessId = accessId;
+    this.accessKey = accessKey;
+  }
+
+  public String getEndpoint() {
+    return endpoint;
+  }
+
+  public String getAccessId() {
+    return accessId;
+  }
+
+  public String getAccessKey() {
+    return accessKey;
   }
 
   public ListShardResponse ListShard(String prj, String logStore)

@@ -182,7 +182,10 @@ object LoghubBatchRDD {
   private var client: LoghubClientAgent = null
 
   def getClient(endpoint: String, accessId: String, accessKey: String): LoghubClientAgent = {
-    if (client == null) {
+    if (client == null ||
+      !endpoint.equals(client.getEndpoint) ||
+      !accessId.equals(client.getAccessId) ||
+      !accessKey.equals(accessKey)) {
       client = new LoghubClientAgent(endpoint, accessId, accessKey)
     }
 
