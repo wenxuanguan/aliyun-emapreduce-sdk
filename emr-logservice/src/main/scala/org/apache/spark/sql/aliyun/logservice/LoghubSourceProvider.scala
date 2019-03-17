@@ -32,9 +32,9 @@ import org.apache.spark.sql.types.StructType
 
 class LoghubSourceProvider extends DataSourceRegister
     with StreamSourceProvider
-    with RelationProvider
-    with CreatableRelationProvider
-    with ContinuousReadSupport
+//    with RelationProvider
+//    with CreatableRelationProvider
+//    with ContinuousReadSupport
     with Logging {
   import LoghubSourceProvider._
 
@@ -68,7 +68,8 @@ class LoghubSourceProvider extends DataSourceRegister
       loghubOffsetReader)
   }
 
-  override def createRelation(
+  // TODO: no need
+  def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
     Utils.validateOptions(parameters)
@@ -84,7 +85,8 @@ class LoghubSourceProvider extends DataSourceRegister
     new LoghubRelation(sqlContext, parameters, startingRelationOffsets, endingRelationOffsets)
   }
 
-  override def createRelation(
+  // TODO: no need
+  def createRelation(
       sqlContext: SQLContext,
       mode: SaveMode,
       parameters: Map[String, String],
@@ -113,7 +115,8 @@ class LoghubSourceProvider extends DataSourceRegister
     }
   }
 
-  override def createContinuousReader(
+  // TODO: no need
+  def createContinuousReader(
       schema: Optional[StructType],
       checkpointLocation: String,
       options: DataSourceOptions): ContinuousReader = {
