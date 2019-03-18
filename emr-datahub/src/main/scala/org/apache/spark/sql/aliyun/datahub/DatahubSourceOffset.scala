@@ -19,7 +19,7 @@ package org.apache.spark.sql.aliyun.datahub
 import scala.collection.mutable.HashMap
 import scala.util.control.NonFatal
 
-import org.apache.spark.sql.execution.streaming.SerializedOffset
+import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.apache.spark.sql.sources.v2.reader.streaming.{PartitionOffset, Offset => OffsetV2}
 import org.json4s.NoTypeHints
 import org.json4s.jackson.Serialization
@@ -39,8 +39,15 @@ case class DatahubOffset(sequenceId: Long, recordTime: Long)
 object DatahubSourceOffset {
   private implicit val formats = Serialization.formats(NoTypeHints)
 
-  def getShardOffsets(offset: OffsetV2): Map[DatahubShard, String] = {
-    null
+  // TODO:
+  def getShardOffsets(offset: Offset): Map[DatahubShard, Long] = {
+    offset match {
+      case o: DatahubSourceOffset => o.shardToOffsets
+      case so: SerializedOffset => DatahubSourceOffset(so).shardToOffsets
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Invalid conversion from offset of ${offset.getClass} to DatahubSourceOffset")
+    }
   }
 
   // TODO:
@@ -58,13 +65,13 @@ object DatahubSourceOffset {
   }
 
   // TODO:
-  def partitionOffsets(str: String): Map[DatahubShard, String] = {
+  def partitionOffsets(str: String): Map[DatahubShard, Long] = {
     try {
-      Serialization.read[Map[String, Map[String, String]]](str).flatMap { case (log, shardOffset) =>
+      Serialization.read[Map[String, Map[String, String]]](str).flatMap { case (info, shardOffset) =>
         shardOffset.map { case (shard, offset) =>
-          val project = log.split("#")(0)
-          val topic = log.split("#")(1)
-          DatahubShard(project, topic, shard) -> offset
+          val project = info.split("#")(0)
+          val topic = info.split("#")(1)
+          DatahubShard(project, topic, shard) -> offset.toLong
         }
       }
     } catch {
@@ -73,21 +80,21 @@ object DatahubSourceOffset {
           s"""Expected
              |{
              |  "project-A#topic-B":{
-             |    "0":"MTUzNzIUnJKsdRcYNzIxODkyMw==",
-             |    "1":"MTUzNzIUnTGxuIkaSdIxODkyMw=="
+             |    "0":"1778693008",
+             |    "1":"1778693008"
              |  },
              |  "project-C#topic-D":{
-             |    "5":"MTUzNzIUnMNqFtSdIPIxODkyMw=="
+             |    "5":"1778693008"
              |  }
              |}, got $str""")
     }
   }
 
-  def apply(offsetTuples: (String, String, Int, String)*): DatahubSourceOffset = {
-    null
+  def apply(offsetTuples: (String, String, String, Long)*): DatahubSourceOffset = {
+    DatahubSourceOffset(offsetTuples.map { case (p, t, sh, os) => (DatahubShard(p, t, sh), os)}.toMap )
   }
 
   def apply(offset: SerializedOffset): DatahubSourceOffset = {
-    null
+    DatahubSourceOffset(partitionOffsets(offset.json))
   }
 }

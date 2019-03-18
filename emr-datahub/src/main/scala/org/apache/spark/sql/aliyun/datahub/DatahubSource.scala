@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.commons.cli.MissingArgumentException
 import org.apache.commons.io.IOUtils
@@ -135,6 +136,7 @@ class DatahubSource(
       })
     }
 
+    // TODO: remove zk and pre-compute
     currentBatches.foreach(_._2.unpersist(false))
     currentBatches.clear()
     val rdd = new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, subscribeId, accessKeyId,
@@ -174,9 +176,46 @@ class DatahubSource(
       start.get
     }
 
-    // TODO: handle (start, end) not in currentBatches?
-    // TODO: handle expired batches
-    sqlContext.internalCreateDataFrame(currentBatches((startOffset, end)), schema, isStreaming = true)
+    val rdd = if (currentBatches.contains((startOffset, end))) {
+      val expiredBatches = currentBatches.filter(b => !b._1._1.equals(startOffset) || !b._1._2.equals(end))
+      expiredBatches.foreach(_._2.unpersist())
+      expiredBatches.foreach(b => currentBatches.remove(b._1))
+      currentBatches((startOffset, end))
+    } else {
+      val fromShardOffsets = start match {
+        case Some(prevBatchEndOffset) =>
+          DatahubSourceOffset.getShardOffsets(prevBatchEndOffset)
+        case None =>
+          initialPartitionOffsets
+      }
+      val shardOffsets = new ArrayBuffer[(String, Long, Long)]()
+      val untilShardOffsets = DatahubSourceOffset.getShardOffsets(end)
+      val shards = untilShardOffsets.keySet.filter { shard =>
+        // Ignore partitions that we don't know the from offsets.
+        fromShardOffsets.contains(shard)
+      }.toSeq
+      shards.foreach(shard => {
+        shardOffsets.+=((shard.shardId, fromShardOffsets(shard), untilShardOffsets(shard)))
+      })
+      new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, subscribeId, accessKeyId, accessKeySecret,
+        schema.fieldNames, shardOffsets.toArray, zkParams, metadataPath, maxOffsetsPerTrigger, fallback)
+        .mapPartitions(it => {
+          val encoderForDataColumns = RowEncoder(schema).resolveAndBind()
+          it.map(data => {
+            if (fallback) {
+              InternalRow(data.project,
+                data.topic,
+                data.shardId,
+                data.systemTime,
+                data.getContent)
+            } else {
+              RowEncoder(schema).resolveAndBind(schema.toAttributes).toRow(new GenericRow(data.toArray))
+            }
+          })
+        })
+    }
+
+    sqlContext.internalCreateDataFrame(rdd, schema, isStreaming = true)
   }
 
   override def stop(): Unit = {

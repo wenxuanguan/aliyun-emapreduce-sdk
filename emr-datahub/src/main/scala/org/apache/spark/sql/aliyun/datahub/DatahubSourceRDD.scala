@@ -31,7 +31,6 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.internal.Logging
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.streaming.aliyun.datahub.JacksonParser
 import org.apache.spark.util.NextIterator
 
 class DatahubSourceRDD(
@@ -54,9 +53,6 @@ class DatahubSourceRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[DatahubData] = {
     val shardPartition = split.asInstanceOf[ShardPartition]
-    if (shardPartition.count == 0) {
-      return Iterator.empty.asInstanceOf[Iterator[DatahubData]]
-    }
 
     zkClient = DatahubOffsetReader.getOrCreateZKClient(zkParam)
     zkClient.setZkSerializer(new ZkSerializer{
@@ -107,14 +103,18 @@ class DatahubSourceRDD(
         }
 
         private def checkHasNext: Boolean = {
-          val hasNext = hasRead < shardPartition.count || !dataBuffer.isEmpty
-          if (!hasNext) {
-            // commit next offset
-            val nextSeq = lastOffset.getSequence + 1
-            writeDataToZk(zkClient, s"$checkpointDir/datahub/available/$project/$topic/$subId/${shardPartition.shardId}",
-              nextSeq.toString)
+          if (shardPartition.count <= 0 ) {
+            dataBuffer.nonEmpty
+          } else {
+            val hasNext = hasRead < shardPartition.count || !dataBuffer.isEmpty
+            if (!hasNext) {
+              // commit next offset
+              val nextSeq = lastOffset.getSequence + 1
+              writeDataToZk(zkClient, s"$checkpointDir/datahub/available/$project/$topic/$subId/${shardPartition.shardId}",
+                nextSeq.toString)
+            }
+            hasNext
           }
-          hasNext
         }
 
         private def fetchData() = {

@@ -16,30 +16,53 @@
  */
 package com.aliyun.emr.examples.sql.streaming
 
+import java.util.UUID
+
 import org.apache.spark.sql.SparkSession
 
 object StructuredDatahubWordCount {
   def main(args: Array[String]): Unit = {
+    if (args.length < 8) {
+      println(
+        """
+          |Usage: <endpoint> <project> <topic> <subscribe id> <access key id> <access key secret>
+          |        <zookeeper host:port> <max offset per trigger>
+          |        [checkpoint directory=/tmp/datahub/test/checkpoint]
+          |
+        """.stripMargin)
+      sys.exit(1)
+    }
+
+    val Array(endpoint, project, topic, subscribeId, accessKeyId, accessKeySecret, zkHosts, maxOffset, _*) = args
+    val checkpointDir = if (args.length > 8) {
+      args(8)
+    } else {
+      "/tmp/datahub/test/checkpoint"
+    }
+
     val spark = SparkSession.builder()
-      .master("local[4]")
+//      .master("local[4]")
       .appName("datahub-word-count")
       .getOrCreate()
-    spark.sparkContext.setLogLevel("ERROR")
+//    spark.sparkContext.setLogLevel("ERROR")
 
     import spark.implicits._
     val value = spark.readStream.format("datahub")
-      .option("endpoint", "https://dh-cn-hangzhou.aliyuncs.com")
-      .option("project", "emr_sdk")
-      .option("topic", "datahub_streaming_test")
-      .option("subscribe.id", "1548156839354DAELZ")
-      .option("access.key.id", "LTAI7zv2hihAIKmK")
-      .option("access.key.secret", "CdHqmx7UM3d5l3HiU2qUSCF7CCrPn3")
-      .option("max.offset.per.trigger", "100")
-      .option("zookeeper.connect.address", "47.111.65.177:2181")
+//      .option("endpoint", "https://dh-cn-hangzhou.aliyuncs.com")
+      .option("endpoint", endpoint)
+      .option("project", project)
+      .option("topic", topic)
+      .option("subscribe.id", subscribeId)
+      .option("access.key.id", accessKeyId)
+      .option("access.key.secret", accessKeySecret)
+      .option("max.offset.per.trigger", maxOffset)
+//      .option("zookeeper.connect.address", "47.111.65.177:2181")
+      .option("zookeeper.connect.address", zkHosts)
       .load()
 
     val count = value.groupBy("value0", "value1").count()
     val query = count.writeStream.format("console")
+      .option("checkpointLocation", checkpointDir)
       .outputMode("complete")
       .start()
     query.awaitTermination()
