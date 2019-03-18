@@ -33,8 +33,6 @@ class DatahubSourceProvider extends DataSourceRegister with StreamSourceProvider
     (shortName(), DatahubSchema.getSchema(schema, parameters))
   }
 
-
-  // TODO: how to set schema
   override def createSource(
       sqlContext: SQLContext,
       metadataPath: String, 
