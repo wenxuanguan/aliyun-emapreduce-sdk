@@ -16,6 +16,8 @@
  */
 package org.apache.spark.sql.aliyun.datahub
 
+import java.util.Locale
+
 sealed trait DatahubOffsetRangeLimit
 
 case object OldestOffsetRangeLimit extends DatahubOffsetRangeLimit
@@ -26,5 +28,22 @@ case class SpecificOffsetRangeLimit(shardOffsets: Map[DatahubShard, Long]) exten
 
 object DatahubOffsetRangeLimit {
   val LATEST = "-1" // indicates resolution to the latest offset
-  val Oldest = "-2" // indicates resolution to the oldest offset
+  val OLDEST = "-2" // indicates resolution to the oldest offset
+  val STARTING_OFFSETS_OPTION_KEY = "startingoffsets"
+  val ENDING_OFFSETS_OPTION_KEY = "endingoffsets"
+
+
+  def getOffsetRangeLimit(
+      params: Map[String, String],
+      offsetOptionKey: String,
+      defaultOffsets: DatahubOffsetRangeLimit): DatahubOffsetRangeLimit = {
+    params.get(offsetOptionKey).map(_.trim) match {
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "latest" =>
+        LatestOffsetRangeLimit
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == "earliest" =>
+        OldestOffsetRangeLimit
+      case Some(json) => SpecificOffsetRangeLimit(DatahubSourceOffset.partitionOffsets(json))
+      case None => defaultOffsets
+    }
+  }
 }

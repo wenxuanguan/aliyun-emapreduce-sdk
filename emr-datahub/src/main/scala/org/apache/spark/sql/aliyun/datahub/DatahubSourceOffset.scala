@@ -29,7 +29,7 @@ case class DatahubSourceOffset(shardToOffsets: Map[DatahubShard, Long]) extends 
   override def json(): String = DatahubSourceOffset.partitionOffsets(shardToOffsets)
 }
 
-case class DatahubShardOffset(project: String, topic: String, shard: Int, offset: Long) extends PartitionOffset
+case class DatahubShardOffset(project: String, topic: String, shard: String, offset: Long) extends PartitionOffset
 
 case class DatahubShardOffsets(shardId: String, startOffset: String, endOffset: Long) extends PartitionOffset
 

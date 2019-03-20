@@ -59,8 +59,6 @@ class DatahubSource(
     throw new MissingArgumentException("Missing datahub project (='project')."))
   private val topic = sourceOptions.getOrElse("topic",
     throw new MissingArgumentException("Missing datahub topic (='topic')."))
-  private val subscribeId = sourceOptions.getOrElse("subscribe.id",
-    throw new MissingArgumentException("Missing datahub subscribe id (='subscribe.id')"))
   private val accessKeyId = sourceOptions.getOrElse("access.key.id",
     throw new MissingArgumentException("Missing aliyun account access key id (='access.key.id')"))
   private val accessKeySecret = sourceOptions.getOrElse("access.key.secret",
@@ -139,7 +137,7 @@ class DatahubSource(
     // TODO: remove zk and pre-compute
     currentBatches.foreach(_._2.unpersist(false))
     currentBatches.clear()
-    val rdd = new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, subscribeId, accessKeyId,
+    val rdd = new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, accessKeyId,
       accessKeySecret, schema.fieldNames, shardOffsets.toArray, zkParams, metadataPath, maxOffsetsPerTrigger, fallback)
       .mapPartitions(it => {
         it.map(data => {
@@ -160,7 +158,7 @@ class DatahubSource(
     val startOffset = DatahubSourceOffset(shardOffsets.map(so => (DatahubShard(project, topic, so._1), so._2)).toMap)
     val end = shardOffsets.map(so => {
       val path = new Path(metadataPath).toUri.getPath
-      val offset: String = zkClient.readData(s"$path/datahub/available/$project/$topic/$subscribeId/${so._1}")
+      val offset: String = zkClient.readData(s"$path/datahub/available/$project/$topic/${so._1}")
       (DatahubShard(project, topic, so._1), offset.toLong)
     }).toMap
     val endOffset = DatahubSourceOffset(end)
@@ -197,7 +195,7 @@ class DatahubSource(
       shards.foreach(shard => {
         shardOffsets.+=((shard.shardId, fromShardOffsets(shard), untilShardOffsets(shard)))
       })
-      new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, subscribeId, accessKeyId, accessKeySecret,
+      new DatahubSourceRDD(sqlContext.sparkContext, endpoint, project, topic, accessKeyId, accessKeySecret,
         schema.fieldNames, shardOffsets.toArray, zkParams, metadataPath, maxOffsetsPerTrigger, fallback)
         .mapPartitions(it => {
           val encoderForDataColumns = RowEncoder(schema).resolveAndBind()

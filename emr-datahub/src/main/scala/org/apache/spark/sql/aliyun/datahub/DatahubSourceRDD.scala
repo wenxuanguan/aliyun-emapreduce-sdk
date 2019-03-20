@@ -38,7 +38,6 @@ class DatahubSourceRDD(
     endpoint: String,
     project: String,
     topic: String,
-    subId: String,
     accessId: String,
     accessKey: String,
     schemaFieldNames: Array[String],
@@ -110,7 +109,7 @@ class DatahubSourceRDD(
             if (!hasNext) {
               // commit next offset
               val nextSeq = lastOffset.getSequence + 1
-              writeDataToZk(zkClient, s"$checkpointDir/datahub/available/$project/$topic/$subId/${shardPartition.shardId}",
+              writeDataToZk(zkClient, s"$checkpointDir/datahub/available/$project/$topic/${shardPartition.shardId}",
                 nextSeq.toString)
             }
             hasNext

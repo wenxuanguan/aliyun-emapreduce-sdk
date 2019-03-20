@@ -17,12 +17,21 @@
 
 package org.apache.spark.sql.aliyun.datahub
 
-import org.apache.spark.sql.SQLContext
+import java.util.{Locale, Optional, UUID}
+
+import scala.collection.JavaConverters._
+
+import org.apache.spark.internal.Logging
+import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext, SaveMode}
 import org.apache.spark.sql.execution.streaming.Source
-import org.apache.spark.sql.sources.{DataSourceRegister, StreamSourceProvider}
+import org.apache.spark.sql.sources.v2.reader.streaming.ContinuousReader
+import org.apache.spark.sql.sources.v2.{ContinuousReadSupport, DataSourceOptions}
+import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
 
-class DatahubSourceProvider extends DataSourceRegister with StreamSourceProvider{
+class DatahubSourceProvider extends DataSourceRegister
+  with StreamSourceProvider
+  with ContinuousReadSupport{
   override def shortName(): String = "datahub"
 
   override def sourceSchema(
@@ -51,4 +60,51 @@ class DatahubSourceProvider extends DataSourceRegister with StreamSourceProvider
       case None => LatestOffsetRangeLimit
     }
   }
+
+  override def createContinuousReader(
+      schema: Optional[StructType],
+      checkpointLocation: String,
+      options: DataSourceOptions): ContinuousReader = {
+    val parameters = options.asMap().asScala.toMap
+    val uniqueGroupId = s"spark-datahub-source-${UUID.randomUUID}-${checkpointLocation.hashCode}"
+    val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+    val startingStreamOffset = DatahubOffsetRangeLimit.getOffsetRangeLimit(caseInsensitiveParams,
+      DatahubOffsetRangeLimit.STARTING_OFFSETS_OPTION_KEY, LatestOffsetRangeLimit)
+
+    val datahubOffsetReader = new DatahubOffsetReader(caseInsensitiveParams)
+    new DatahubContinuousReader(
+      Some(schema.orElse(new StructType())),
+      datahubOffsetReader,
+      paramsForExecutors(parameters, uniqueGroupId),
+      parameters,
+      checkpointLocation,
+      startingStreamOffset)
+  }
+
+  private def paramsForExecutors(
+      specifiedLoghubParams: Map[String, String],
+      uniqueGroupId: String): java.util.Map[String, Object] =
+    ConfigUpdater("executor", specifiedLoghubParams)
+      .build()
+}
+
+/** Class to conveniently update Loghub config params, while logging the changes */
+private case class ConfigUpdater(module: String, loghubParams: Map[String, String]) extends Logging {
+  private val map = new java.util.HashMap[String, Object](loghubParams.asJava)
+
+  def set(key: String, value: Object): this.type = {
+    map.put(key, value)
+    logDebug(s"$module: Set $key to $value, earlier value: ${loghubParams.getOrElse(key, "")}")
+    this
+  }
+
+  def setIfUnset(key: String, value: Object): ConfigUpdater = {
+    if (!map.containsKey(key)) {
+      map.put(key, value)
+      logDebug(s"$module: Set $key to $value")
+    }
+    this
+  }
+
+  def build(): java.util.Map[String, Object] = map
 }

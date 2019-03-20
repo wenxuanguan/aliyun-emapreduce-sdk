@@ -85,25 +85,31 @@ object DatahubSchema extends Logging {
   }
 
   def getSchema(schema: Option[StructType], sourceOptions: Map[String, String]): StructType = {
+    if (schema.isDefined && schema.get.nonEmpty) {
+      schema.get
+    } else {
+      getSchema(sourceOptions)
+    }
+  }
+
+  def getSchema(sourceOptions: Map[String, String]): StructType = {
     validateOptions(sourceOptions)
     val project = sourceOptions("project")
     val topic = sourceOptions("topic")
     val endpoint = sourceOptions("endpoint")
     val accessKeyId = sourceOptions("access.key.id")
     val accessKeySecret = sourceOptions("access.key.secret")
-    if (schema.isDefined && schema.get.nonEmpty) {
-      schema.get
-    } else {
-      try {
-        getSchema(project, topic,
-          accessKeyId, accessKeySecret, endpoint)
-      } catch {
-        case e: Exception =>
-          logWarning(s"Failed to analyse datahub schema, fall back to default " +
-            s"schema ${getDefaultSchema}", e)
-          getDefaultSchema
-      }
+
+    try {
+      getSchema(project, topic,
+        accessKeyId, accessKeySecret, endpoint)
+    } catch {
+      case e: Exception =>
+        logWarning(s"Failed to analyse datahub schema, fall back to default " +
+          s"schema ${getDefaultSchema}", e)
+        getDefaultSchema
     }
+
   }
 
   def getSchema(
@@ -140,7 +146,5 @@ object DatahubSchema extends Logging {
     caseInsensitiveParams.getOrElse("zookeeper.connect.address",
       throw new MissingArgumentException("Missing zookeeper connect address " +
         "(='zookeeper.connect.address')."))
-    caseInsensitiveParams.getOrElse("subscribe.id",
-      throw new MissingArgumentException("Missing datahub subscribe id (='subscribe.id')"))
   }
 }
